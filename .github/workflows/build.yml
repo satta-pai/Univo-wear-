@@ -1,101 +1,46 @@
-name: Build UNIVO WEAR Android APK & Deploy Live Domain
-
+name: Build UNIVO WEAR Hybrid Android APK & Website
 on:
   push:
     branches:
-      - main
-      - master
+    - main
+    - master
   workflow_dispatch:
-
 permissions:
   contents: write
   pages: write
   id-token: write
-
 jobs:
-  build-apk-and-deploy-web:
+  build-hybrid-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: "1. Checkout Repository"
-        uses: actions/checkout@v4
-
-      - name: "2. Auto-Prepare Web App (index.html)"
-        run: |
-          mkdir -p web_deploy apk_out
-          if [ -f dress_shop_tracker.html ]; then
-            cp dress_shop_tracker.html web_deploy/index.html
-            cp dress_shop_tracker.html index.html
-          elif [ -f index.html ]; then
-            cp index.html web_deploy/index.html
-          elif [ -f univo_wear_flutter.zip ]; then
-            unzip -o univo_wear_flutter.zip -d .
-            if [ -f web_pos/index.html ]; then
-              cp web_pos/index.html web_deploy/index.html
-              cp web_pos/index.html index.html
-            fi
-          fi
-
-      - name: "3. Setup Java 17"
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: "4. Print Android SHA-1 & SHA-256 for Firebase Google Auth"
-        run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          echo "### 🔑 Android Google Auth SHA-1 Fingerprint" >> $GITHUB_STEP_SUMMARY
-          echo "Copy SHA1 below into Firebase Console -> Project Settings -> Android App (com.univowear.pos):" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1:|SHA256:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-      - name: "5A. Setup Flutter (if univo_wear_flutter.zip or pubspec.yaml exists)"
-        if: hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: "5B. Auto-Unzip & Build Flutter APK"
-        if: hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''
-        run: |
-          if [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d .; fi
-          flutter create --org com.univowear.pos --project-name univo_wear .
-          flutter pub get
-          flutter build apk --release --no-tree-shake-icons
-          cp build/app/outputs/flutter-apk/app-release.apk apk_out/UNIVO-WEAR-Flutter-POS.apk
-
-      - name: "6A. Setup Node.js (Zero-Zip HTML to APK Builder)"
-        if: hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: "6B. Build Android APK Directly from HTML (Zero Zip Needed)"
-        if: hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''
-        run: |
-          mkdir -p www apk_out
-          if [ -f index.html ]; then
-            cp index.html www/index.html
-          else
-            echo '<h1>UNIVO WEAR POS</h1>' > www/index.html
-          fi
-          npm init -y
-          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/android@5
-          npx cap init "UNIVO WEAR" "com.univowear.pos" --web-dir www
-          npx cap add android
-          npx cap copy android
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../apk_out/UNIVO-WEAR-POS.apk
-
-      - name: "7. Upload Downloadable Android APK Artifact"
-        uses: actions/upload-artifact@v4
-        with:
-          name: "UNIVO-WEAR-Android-APK"
-          path: "apk_out/*.apk"
+    - name: 1. Checkout Repository
+      uses: actions/checkout@v4
+    - name: 2. Locate Web App HTML (dress_shop_tracker.html / app.html / index.html / zip)
+      run: mkdir -p /tmp/univo_web && if [ -f dress_shop_tracker.html ]; then cp -f dress_shop_tracker.html /tmp/univo_web/index.html; elif [ -f app.html ]; then cp -f app.html /tmp/univo_web/index.html; elif [ -f index.html ]; then cp -f index.html /tmp/univo_web/index.html; elif [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d /tmp/univo_zip && if [ -f /tmp/univo_zip/assets/www/index.html ]; then cp -f /tmp/univo_zip/assets/www/index.html /tmp/univo_web/index.html; elif [ -f /tmp/univo_zip/web_pos/index.html ]; then cp -f /tmp/univo_zip/web_pos/index.html /tmp/univo_web/index.html; fi; fi && test -f /tmp/univo_web/index.html
+    - name: 3. Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: zulu
+        java-version: '17'
+    - name: 4. Print Android SHA-1 & SHA-256 Fingerprints for Firebase Google Sign-In
+      run: mkdir -p ~/.android && if [ ! -f ~/.android/debug.keystore ]; then keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'; fi && echo '### 🔑 UNIVO WEAR Android SHA-1 Fingerprint (For Firebase Console)' >> $GITHUB_STEP_SUMMARY && echo 'Copy the **SHA1** below and add it in **Firebase Console -> Project Settings -> Your Apps -> Android App (com.univowear.pos)**:' >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY && keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E 'SHA1:|SHA256:' >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY
+    - name: 5. Setup Flutter Stable
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        cache: true
+    - name: 6. Create Flutter Base FIRST, Then Overwrite with UNIVO WEAR Hybrid WebView Engine
+      run: flutter create --org com.univowear.pos --project-name univo_wear . && mkdir -p assets/www lib build/web && cp -f /tmp/univo_web/index.html assets/www/index.html && cp -f /tmp/univo_web/index.html build/web/index.html && echo 'bmFtZTogdW5pdm9fd2VhcgpkZXNjcmlwdGlvbjogVU5JVk8gV0VBUiAtIE93bmVyICYgU3RhZmYgUE9TIEh5YnJpZCBBbmRyb2lkIEFwcApwdWJsaXNoX3RvOiAnbm9uZScKdmVyc2lvbjogMTMuMC4wKzEzCgplbnZpcm9ubWVudDoKICBzZGs6ICc+PTMuMC4wIDw0LjAuMCcKCmRlcGVuZGVuY2llczoKICBmbHV0dGVyOgogICAgc2RrOiBmbHV0dGVyCiAgd2Vidmlld19mbHV0dGVyOiBeNC40LjIKICBnb29nbGVfc2lnbl9pbjogXjYuMi4xCiAgdXJsX2xhdW5jaGVyOiBeNi4yLjQKCmRldl9kZXBlbmRlbmNpZXM6CiAgZmx1dHRlcl90ZXN0OgogICAgc2RrOiBmbHV0dGVyCgpmbHV0dGVyOgogIHVzZXMtbWF0ZXJpYWwtZGVzaWduOiB0cnVlCiAgYXNzZXRzOgogICAgLSBhc3NldHMvd3d3L2luZGV4Lmh0bWwK' | base64 -d > pubspec.yaml && echo 'aW1wb3J0ICdkYXJ0OmFzeW5jJzsKaW1wb3J0ICdkYXJ0OmNvbnZlcnQnOwppbXBvcnQgJ2RhcnQ6aW8nOwppbXBvcnQgJ3BhY2thZ2U6Zmx1dHRlci9tYXRlcmlhbC5kYXJ0JzsKaW1wb3J0ICdwYWNrYWdlOmZsdXR0ZXIvc2VydmljZXMuZGFydCc7CmltcG9ydCAncGFja2FnZTp3ZWJ2aWV3X2ZsdXR0ZXIvd2Vidmlld19mbHV0dGVyLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6Z29vZ2xlX3NpZ25faW4vZ29vZ2xlX3NpZ25faW4uZGFydCc7CmltcG9ydCAncGFja2FnZTp1cmxfbGF1bmNoZXIvdXJsX2xhdW5jaGVyLmRhcnQnOwoKdm9pZCBtYWluKCkgewogIFdpZGdldHNGbHV0dGVyQmluZGluZy5lbnN1cmVJbml0aWFsaXplZCgpOwogIFN5c3RlbUNocm9tZS5zZXRTeXN0ZW1VSU92ZXJsYXlTdHlsZShjb25zdCBTeXN0ZW1VaU92ZXJsYXlTdHlsZSgKICAgIHN0YXR1c0JhckNvbG9yOiBDb2xvcigweEZGMDcwODBDKSwKICAgIHN0YXR1c0Jhckljb25CcmlnaHRuZXNzOiBCcmlnaHRuZXNzLmxpZ2h0LAogICAgc3lzdGVtTmF2aWdhdGlvbkJhckNvbG9yOiBDb2xvcigweEZGMDcwODBDKSwKICAgIHN5c3RlbU5hdmlnYXRpb25CYXJJY29uQnJpZ2h0bmVzczogQnJpZ2h0bmVzcy5saWdodCwKICApKTsKICBydW5BcHAoY29uc3QgVW5pdm9XZWFySHlicmlkQXBwKCkpOwp9CgpjbGFzcyBVbml2b1dlYXJIeWJyaWRBcHAgZXh0ZW5kcyBTdGF0ZWxlc3NXaWRnZXQgewogIGNvbnN0IFVuaXZvV2Vhckh5YnJpZEFwcCh7c3VwZXIua2V5fSk7CgogIEBvdmVycmlkZQogIFdpZGdldCBidWlsZChCdWlsZENvbnRleHQgY29udGV4dCkgewogICAgcmV0dXJuIE1hdGVyaWFsQXBwKAogICAgICB0aXRsZTogJ1VOSVZPIFdFQVInLAogICAgICBkZWJ1Z1Nob3dDaGVja2VkTW9kZUJhbm5lcjogZmFsc2UsCiAgICAgIHRoZW1lOiBUaGVtZURhdGEuZGFyaygpLmNvcHlXaXRoKAogICAgICAgIHNjYWZmb2xkQmFja2dyb3VuZENvbG9yOiBjb25zdCBDb2xvcigweEZGMDcwODBDKSwKICAgICAgKSwKICAgICAgaG9tZTogY29uc3QgVW5pdm9XZWFyV2ViVmlld1NjcmVlbigpLAogICAgKTsKICB9Cn0KCmNsYXNzIFVuaXZvV2VhcldlYlZpZXdTY3JlZW4gZXh0ZW5kcyBTdGF0ZWZ1bFdpZGdldCB7CiAgY29uc3QgVW5pdm9XZWFyV2ViVmlld1NjcmVlbih7c3VwZXIua2V5fSk7CgogIEBvdmVycmlkZQogIFN0YXRlPFVuaXZvV2VhcldlYlZpZXdTY3JlZW4+IGNyZWF0ZVN0YXRlKCkgPT4gX1VuaXZvV2VhcldlYlZpZXdTY3JlZW5TdGF0ZSgpOwp9CgpjbGFzcyBfVW5pdm9XZWFyV2ViVmlld1NjcmVlblN0YXRlIGV4dGVuZHMgU3RhdGU8VW5pdm9XZWFyV2ViVmlld1NjcmVlbj4gewogIEh0dHBTZXJ2ZXI/IF9sb2NhbFNlcnZlcjsKICBXZWJWaWV3Q29udHJvbGxlcj8gX2NvbnRyb2xsZXI7CiAgYm9vbCBfaXNSZWFkeSA9IGZhbHNlOwogIGZpbmFsIEdvb2dsZVNpZ25JbiBfZ29vZ2xlU2lnbkluID0gR29vZ2xlU2lnbkluKHNjb3BlczogWydlbWFpbCcsICdwcm9maWxlJ10pOwoKICBAb3ZlcnJpZGUKICB2b2lkIGluaXRTdGF0ZSgpIHsKICAgIHN1cGVyLmluaXRTdGF0ZSgpOwogICAgX3N0YXJ0TG9jYWxQb3NFbmdpbmUoKTsKICB9CgogIEZ1dHVyZTx2b2lkPiBfc3RhcnRMb2NhbFBvc0VuZ2luZSgpIGFzeW5jIHsKICAgIGZpbmFsIFN0cmluZyBodG1sQ29udGVudCA9IGF3YWl0IHJvb3RCdW5kbGUubG9hZFN0cmluZygnYXNzZXRzL3d3dy9pbmRleC5odG1sJyk7CiAgICBmaW5hbCBMaXN0PGludD4gaHRtbEJ5dGVzID0gdXRmOC5lbmNvZGUoaHRtbENvbnRlbnQpOwoKICAgIC8vIEZpeGVkIHBvcnQgODc2NSBzbyBsb2NhbFN0b3JhZ2UgYW5kIEZpcmViYXNlIEF1dGggc2Vzc2lvbiB0b2tlbnMgcGVyc2lzdCBwZXJtYW5lbnRseSBhY3Jvc3MgYXBwIHJlc3RhcnRzIQogICAgaW50IHBvcnQgPSA4NzY1OwogICAgdHJ5IHsKICAgICAgX2xvY2FsU2VydmVyID0gYXdhaXQgSHR0cFNlcnZlci5iaW5kKEludGVybmV0QWRkcmVzcy5sb29wYmFja0lQdjQsIHBvcnQsIHNoYXJlZDogdHJ1ZSk7CiAgICB9IGNhdGNoIChfKSB7CiAgICAgIHRyeSB7CiAgICAgICAgcG9ydCA9IDg3NjY7CiAgICAgICAgX2xvY2FsU2VydmVyID0gYXdhaXQgSHR0cFNlcnZlci5iaW5kKEludGVybmV0QWRkcmVzcy5sb29wYmFja0lQdjQsIHBvcnQsIHNoYXJlZDogdHJ1ZSk7CiAgICAgIH0gY2F0Y2ggKF8pIHsKICAgICAgICBfbG9jYWxTZXJ2ZXIgPSBhd2FpdCBIdHRwU2VydmVyLmJpbmQoSW50ZXJuZXRBZGRyZXNzLmxvb3BiYWNrSVB2NCwgMCwgc2hhcmVkOiB0cnVlKTsKICAgICAgICBwb3J0ID0gX2xvY2FsU2VydmVyIS5wb3J0OwogICAgICB9CiAgICB9CgogICAgX2xvY2FsU2VydmVyIS5saXN0ZW4oKEh0dHBSZXF1ZXN0IHJlcXVlc3QpIGFzeW5jIHsKICAgICAgcmVxdWVzdC5yZXNwb25zZS5oZWFkZXJzLnNldCgnQ29udGVudC1UeXBlJywgJ3RleHQvaHRtbDsgY2hhcnNldD11dGYtOCcpOwogICAgICByZXF1ZXN0LnJlc3BvbnNlLmhlYWRlcnMuc2V0KCdBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW4nLCAnKicpOwogICAgICByZXF1ZXN0LnJlc3BvbnNlLmhlYWRlcnMuc2V0KCdDYWNoZS1Db250cm9sJywgJ25vLXN0b3JlJyk7CiAgICAgIHJlcXVlc3QucmVzcG9uc2UuYWRkKGh0bWxCeXRlcyk7CiAgICAgIGF3YWl0IHJlcXVlc3QucmVzcG9uc2UuY2xvc2UoKTsKICAgIH0pOwoKICAgIGZpbmFsIGNvbnRyb2xsZXIgPSBXZWJWaWV3Q29udHJvbGxlcigpCiAgICAgIC4uc2V0SmF2YVNjcmlwdE1vZGUoSmF2YVNjcmlwdE1vZGUudW5yZXN0cmljdGVkKQogICAgICAuLnNldEJhY2tncm91bmRDb2xvcihjb25zdCBDb2xvcigweEZGMDcwODBDKSkKICAgICAgLi5hZGRKYXZhU2NyaXB0Q2hhbm5lbCgKICAgICAgICAnVW5pdm9OYXRpdmVBdXRoJywKICAgICAgICBvbk1lc3NhZ2VSZWNlaXZlZDogKEphdmFTY3JpcHRNZXNzYWdlIG1lc3NhZ2UpIGFzeW5jIHsKICAgICAgICAgIGZpbmFsIG1zZyA9IG1lc3NhZ2UubWVzc2FnZTsKICAgICAgICAgIGlmIChtc2cgPT0gJ2dvb2dsZV9sb2dpbicpIHsKICAgICAgICAgICAgYXdhaXQgX2hhbmRsZU5hdGl2ZUdvb2dsZUxvZ2luKCk7CiAgICAgICAgICB9IGVsc2UgaWYgKG1zZy5zdGFydHNXaXRoKCdvcGVuX3VybDonKSkgewogICAgICAgICAgICBmaW5hbCB1cmxTdHIgPSBtc2cuc3Vic3RyaW5nKCdvcGVuX3VybDonLmxlbmd0aCk7CiAgICAgICAgICAgIGZpbmFsIHVyaSA9IFVyaS50cnlQYXJzZSh1cmxTdHIpOwogICAgICAgICAgICBpZiAodXJpICE9IG51bGwpIHsKICAgICAgICAgICAgICBhd2FpdCBsYXVuY2hVcmwodXJpLCBtb2RlOiBMYXVuY2hNb2RlLmV4dGVybmFsQXBwbGljYXRpb24pOwogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgfSwKICAgICAgKQogICAgICAuLnNldE5hdmlnYXRpb25EZWxlZ2F0ZSgKICAgICAgICBOYXZpZ2F0aW9uRGVsZWdhdGUoCiAgICAgICAgICBvbk5hdmlnYXRpb25SZXF1ZXN0OiAoTmF2aWdhdGlvblJlcXVlc3QgcmVxdWVzdCkgYXN5bmMgewogICAgICAgICAgICBmaW5hbCB1cmwgPSByZXF1ZXN0LnVybDsKICAgICAgICAgICAgaWYgKHVybC5zdGFydHNXaXRoKCdodHRwczovL3dhLm1lLycpIHx8CiAgICAgICAgICAgICAgICB1cmwuc3RhcnRzV2l0aCgnd2hhdHNhcHA6Ly8nKSB8fAogICAgICAgICAgICAgICAgdXJsLnN0YXJ0c1dpdGgoJ3RlbDonKSB8fAogICAgICAgICAgICAgICAgdXJsLnN0YXJ0c1dpdGgoJ21haWx0bzonKSkgewogICAgICAgICAgICAgIGZpbmFsIHVyaSA9IFVyaS50cnlQYXJzZSh1cmwpOwogICAgICAgICAgICAgIGlmICh1cmkgIT0gbnVsbCkgewogICAgICAgICAgICAgICAgYXdhaXQgbGF1bmNoVXJsKHVyaSwgbW9kZTogTGF1bmNoTW9kZS5leHRlcm5hbEFwcGxpY2F0aW9uKTsKICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgcmV0dXJuIE5hdmlnYXRpb25EZWNpc2lvbi5wcmV2ZW50OwogICAgICAgICAgICB9CiAgICAgICAgICAgIHJldHVybiBOYXZpZ2F0aW9uRGVjaXNpb24ubmF2aWdhdGU7CiAgICAgICAgICB9LAogICAgICAgICksCiAgICAgICkKICAgICAgLi5sb2FkUmVxdWVzdChVcmkucGFyc2UoJ2h0dHA6Ly9sb2NhbGhvc3Q6JHBvcnQvJykpOwoKICAgIGlmIChtb3VudGVkKSB7CiAgICAgIHNldFN0YXRlKCgpIHsKICAgICAgICBfY29udHJvbGxlciA9IGNvbnRyb2xsZXI7CiAgICAgICAgX2lzUmVhZHkgPSB0cnVlOwogICAgICB9KTsKICAgIH0KICB9CgogIEZ1dHVyZTx2b2lkPiBfaGFuZGxlTmF0aXZlR29vZ2xlTG9naW4oKSBhc3luYyB7CiAgICB0cnkgewogICAgICBhd2FpdCBfZ29vZ2xlU2lnbkluLnNpZ25PdXQoKTsKICAgICAgZmluYWwgR29vZ2xlU2lnbkluQWNjb3VudD8gYWNjb3VudCA9IGF3YWl0IF9nb29nbGVTaWduSW4uc2lnbkluKCk7CiAgICAgIGlmIChhY2NvdW50ID09IG51bGwpIHJldHVybjsKICAgICAgZmluYWwgR29vZ2xlU2lnbkluQXV0aGVudGljYXRpb24gYXV0aCA9IGF3YWl0IGFjY291bnQuYXV0aGVudGljYXRpb247CiAgICAgIGZpbmFsIGlkVG9rZW4gPSBqc29uRW5jb2RlKGF1dGguaWRUb2tlbiA/PyAnJyk7CiAgICAgIGZpbmFsIGFjY2Vzc1Rva2VuID0ganNvbkVuY29kZShhdXRoLmFjY2Vzc1Rva2VuID8/ICcnKTsKICAgICAgYXdhaXQgX2NvbnRyb2xsZXI/LnJ1bkphdmFTY3JpcHQoCiAgICAgICAgJ2lmICh3aW5kb3cub25OYXRpdmVHb29nbGVBdXRoU3VjY2Vzcykgd2luZG93Lm9uTmF0aXZlR29vZ2xlQXV0aFN1Y2Nlc3MoJGlkVG9rZW4sICRhY2Nlc3NUb2tlbik7JywKICAgICAgKTsKICAgIH0gY2F0Y2ggKGUpIHsKICAgICAgZmluYWwgZXJyU3RyID0ganNvbkVuY29kZSgKICAgICAgICAnR29vZ2xlIFNpZ24tSW4t4K6V4K+N4K6V4K+BIOCuieCumeCvjeCuleCus+CvjSBBUEst4K6p4K+NIFNIQS0xIOCuleCvi+Cun+CviCBGaXJlYmFzZSBDb25zb2xlIC0+IFByb2plY3QgU2V0dGluZ3MgLT4gQW5kcm9pZCBBcHAgKGNvbS51bml2b3dlYXIucG9zKS3grrLgr40g4K6a4K+H4K6w4K+N4K6V4K+N4K6V4K614K+B4K6u4K+NLiDgroXgrqTgr4HgrrXgrrDgr4gg4K6V4K+A4K604K+HIOCuieCus+CvjeCusyBDbG91ZCBFbWFpbCAmIFBhc3N3b3JkIOCuruCvguCusuCuruCvjSDgrongrp/grqngr4cg4K6y4K6+4K6V4K6/4K6p4K+NIOCumuCvhuCur+CvjeCur+CusuCuvuCuruCvjSEgKCRlKScsCiAgICAgICk7CiAgICAgIGF3YWl0IF9jb250cm9sbGVyPy5ydW5KYXZhU2NyaXB0KAogICAgICAgICdpZiAod2luZG93Lm9uTmF0aXZlR29vZ2xlQXV0aEVycm9yKSB3aW5kb3cub25OYXRpdmVHb29nbGVBdXRoRXJyb3IoJGVyclN0cik7JywKICAgICAgKTsKICAgIH0KICB9CgogIEBvdmVycmlkZQogIHZvaWQgZGlzcG9zZSgpIHsKICAgIF9sb2NhbFNlcnZlcj8uY2xvc2UoZm9yY2U6IHRydWUpOwogICAgc3VwZXIuZGlzcG9zZSgpOwogIH0KCiAgQG92ZXJyaWRlCiAgV2lkZ2V0IGJ1aWxkKEJ1aWxkQ29udGV4dCBjb250ZXh0KSB7CiAgICByZXR1cm4gUG9wU2NvcGUoCiAgICAgIGNhblBvcDogZmFsc2UsCiAgICAgIG9uUG9wSW52b2tlZDogKGRpZFBvcCkgYXN5bmMgewogICAgICAgIGlmIChkaWRQb3ApIHJldHVybjsKICAgICAgICBpZiAoX2NvbnRyb2xsZXIgIT0gbnVsbCAmJiBhd2FpdCBfY29udHJvbGxlciEuY2FuR29CYWNrKCkpIHsKICAgICAgICAgIGF3YWl0IF9jb250cm9sbGVyIS5nb0JhY2soKTsKICAgICAgICB9CiAgICAgIH0sCiAgICAgIGNoaWxkOiBTY2FmZm9sZCgKICAgICAgICBiYWNrZ3JvdW5kQ29sb3I6IGNvbnN0IENvbG9yKDB4RkYwNzA4MEMpLAogICAgICAgIGJvZHk6IFNhZmVBcmVhKAogICAgICAgICAgY2hpbGQ6IF9pc1JlYWR5ICYmIF9jb250cm9sbGVyICE9IG51bGwKICAgICAgICAgICAgICA/IFdlYlZpZXdXaWRnZXQoY29udHJvbGxlcjogX2NvbnRyb2xsZXIhKQogICAgICAgICAgICAgIDogY29uc3QgQ2VudGVyKAogICAgICAgICAgICAgICAgICBjaGlsZDogQ2lyY3VsYXJQcm9ncmVzc0luZGljYXRvcihjb2xvcjogQ29sb3IoMHhGRkY1OUUwQikpLAogICAgICAgICAgICAgICAgKSwKICAgICAgICApLAogICAgICApLAogICAgKTsKICB9Cn0K' | base64 -d > lib/main.dart && echo 'aW1wb3J0IHBhdGhsaWIsIHJlCnAgPSBwYXRobGliLlBhdGgoJ2FuZHJvaWQvYXBwL3NyYy9tYWluL0FuZHJvaWRNYW5pZmVzdC54bWwnKQppZiBwLmV4aXN0cygpOgogICAgdHh0ID0gcC5yZWFkX3RleHQoKQogICAgaWYgJ2FuZHJvaWQucGVybWlzc2lvbi5JTlRFUk5FVCcgbm90IGluIHR4dDoKICAgICAgICB0eHQgPSB0eHQucmVwbGFjZSgnPG1hbmlmZXN0ICcsICc8bWFuaWZlc3QgeG1sbnM6YW5kcm9pZD0iaHR0cDovL3NjaGVtYXMuYW5kcm9pZC5jb20vYXBrL3Jlcy9hbmRyb2lkIiAnLCAxKSBpZiAneG1sbnM6YW5kcm9pZCcgbm90IGluIHR4dCBlbHNlIHR4dAogICAgICAgIHR4dCA9IHJlLnN1YihyJyg8bWFuaWZlc3RbXj5dKj4pJywgcidcMVxuICAgIDx1c2VzLXBlcm1pc3Npb24gYW5kcm9pZDpuYW1lPSJhbmRyb2lkLnBlcm1pc3Npb24uSU5URVJORVQiLz4nLCB0eHQsIGNvdW50PTEpCiAgICBpZiAndXNlc0NsZWFydGV4dFRyYWZmaWMnIG5vdCBpbiB0eHQ6CiAgICAgICAgdHh0ID0gdHh0LnJlcGxhY2UoJzxhcHBsaWNhdGlvbicsICc8YXBwbGljYXRpb24gYW5kcm9pZDp1c2VzQ2xlYXJ0ZXh0VHJhZmZpYz0idHJ1ZSInLCAxKQogICAgdHh0ID0gcmUuc3ViKHInYW5kcm9pZDpsYWJlbD0iW14iXSoiJywgJ2FuZHJvaWQ6bGFiZWw9IlVOSVZPIFdFQVIiJywgdHh0KQogICAgcC53cml0ZV90ZXh0KHR4dCkK' | base64 -d > /tmp/patch_manifest.py && python3 /tmp/patch_manifest.py && rm -rf test/widget_test.dart
+        && flutter pub get
+    - name: 7. Build UNIVO WEAR Release Android APK
+      run: flutter build apk --release --no-tree-shake-icons && mkdir -p apk_out && cp -f build/app/outputs/flutter-apk/app-release.apk apk_out/UNIVO-WEAR-POS.apk
+    - name: 8. Upload Downloadable UNIVO WEAR Android APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: UNIVO-WEAR-Android-APK
+        path: apk_out/UNIVO-WEAR-POS.apk
+    - name: 9. Upload Downloadable Website HTML Bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: UNIVO-WEAR-Website-Files
+        path: build/web/
