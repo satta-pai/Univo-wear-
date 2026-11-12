@@ -1,79 +1,101 @@
-{
-  "name": "Build UNIVO WEAR Android APK & Deploy Live Domain",
-  "on": {
-    "push": {
-      "branches": [
-        "main",
-        "master"
-      ]
-    },
-    "workflow_dispatch": {}
-  },
-  "permissions": {
-    "contents": "write",
-    "pages": "write",
-    "id-token": "write"
-  },
-  "jobs": {
-    "build-apk-and-deploy-web": {
-      "runs-on": "ubuntu-latest",
-      "steps": [
-        {
-          "name": "1. Checkout Repository",
-          "uses": "actions/checkout@v4"
-        },
-        {
-          "name": "2. Auto-Prepare Web App (index.html)",
-          "run": "mkdir -p web_deploy apk_out && if [ -f dress_shop_tracker.html ]; then cp dress_shop_tracker.html web_deploy/index.html && cp dress_shop_tracker.html index.html; elif [ -f index.html ]; then cp index.html web_deploy/index.html; elif [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d . && if [ -f web_pos/index.html ]; then cp web_pos/index.html web_deploy/index.html && cp web_pos/index.html index.html; fi; fi"
-        },
-        {
-          "name": "3. Setup Java 17",
-          "uses": "actions/setup-java@v4",
-          "with": {
-            "distribution": "temurin",
-            "java-version": "17"
-          }
-        },
-        {
-          "name": "4. Print Android SHA-1 & SHA-256 for Firebase Google Auth",
-          "run": "mkdir -p ~/.android && if [ ! -f ~/.android/debug.keystore ]; then keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'; fi && echo '### \ud83d\udd11 Android Google Auth SHA-1 Fingerprint' >> $GITHUB_STEP_SUMMARY && echo 'Copy SHA1 below into Firebase Console -> Project Settings -> Android App (com.univowear.pos):' >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY && keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E 'SHA1:|SHA256:' >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY"
-        },
-        {
-          "name": "5A. Setup Flutter (if univo_wear_flutter.zip or pubspec.yaml exists)",
-          "if": "hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''",
-          "uses": "subosito/flutter-action@v2",
-          "with": {
-            "channel": "stable",
-            "cache": true
-          }
-        },
-        {
-          "name": "5B. Auto-Unzip & Build Flutter APK",
-          "if": "hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''",
-          "run": "if [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d .; fi && flutter create --org com.univowear.pos --project-name univo_wear . && flutter pub get && flutter build apk --release --no-tree-shake-icons && cp build/app/outputs/flutter-apk/app-release.apk apk_out/UNIVO-WEAR-Flutter-POS.apk"
-        },
-        {
-          "name": "6A. Setup Node.js (Zero-Zip HTML to APK Builder)",
-          "if": "hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''",
-          "uses": "actions/setup-node@v4",
-          "with": {
-            "node-version": "20"
-          }
-        },
-        {
-          "name": "6B. Build Android APK Directly from HTML (Zero Zip Needed)",
-          "if": "hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''",
-          "run": "mkdir -p www apk_out && if [ -f index.html ]; then cp index.html www/index.html; else echo '<h1>UNIVO WEAR POS</h1>' > www/index.html; fi && npm init -y && npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/android@5 && npx cap init 'UNIVO WEAR' 'com.univowear.pos' --web-dir www && npx cap add android && npx cap copy android && cd android && chmod +x gradlew && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../apk_out/UNIVO-WEAR-POS.apk"
-        },
-        {
-          "name": "7. Upload Downloadable Android APK Artifact",
-          "uses": "actions/upload-artifact@v4",
-          "with": {
-            "name": "UNIVO-WEAR-Android-APK",
-            "path": "apk_out/*.apk"
-          }
-        }
-      ]
-    }
-  }
-}
+name: Build UNIVO WEAR Android APK & Deploy Live Domain
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-apk-and-deploy-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "1. Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "2. Auto-Prepare Web App (index.html)"
+        run: |
+          mkdir -p web_deploy apk_out
+          if [ -f dress_shop_tracker.html ]; then
+            cp dress_shop_tracker.html web_deploy/index.html
+            cp dress_shop_tracker.html index.html
+          elif [ -f index.html ]; then
+            cp index.html web_deploy/index.html
+          elif [ -f univo_wear_flutter.zip ]; then
+            unzip -o univo_wear_flutter.zip -d .
+            if [ -f web_pos/index.html ]; then
+              cp web_pos/index.html web_deploy/index.html
+              cp web_pos/index.html index.html
+            fi
+          fi
+
+      - name: "3. Setup Java 17"
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: "4. Print Android SHA-1 & SHA-256 for Firebase Google Auth"
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          echo "### 🔑 Android Google Auth SHA-1 Fingerprint" >> $GITHUB_STEP_SUMMARY
+          echo "Copy SHA1 below into Firebase Console -> Project Settings -> Android App (com.univowear.pos):" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1:|SHA256:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: "5A. Setup Flutter (if univo_wear_flutter.zip or pubspec.yaml exists)"
+        if: hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: "5B. Auto-Unzip & Build Flutter APK"
+        if: hashFiles('univo_wear_flutter.zip') != '' || hashFiles('pubspec.yaml') != ''
+        run: |
+          if [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d .; fi
+          flutter create --org com.univowear.pos --project-name univo_wear .
+          flutter pub get
+          flutter build apk --release --no-tree-shake-icons
+          cp build/app/outputs/flutter-apk/app-release.apk apk_out/UNIVO-WEAR-Flutter-POS.apk
+
+      - name: "6A. Setup Node.js (Zero-Zip HTML to APK Builder)"
+        if: hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: "6B. Build Android APK Directly from HTML (Zero Zip Needed)"
+        if: hashFiles('univo_wear_flutter.zip') == '' && hashFiles('pubspec.yaml') == ''
+        run: |
+          mkdir -p www apk_out
+          if [ -f index.html ]; then
+            cp index.html www/index.html
+          else
+            echo '<h1>UNIVO WEAR POS</h1>' > www/index.html
+          fi
+          npm init -y
+          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/android@5
+          npx cap init "UNIVO WEAR" "com.univowear.pos" --web-dir www
+          npx cap add android
+          npx cap copy android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../apk_out/UNIVO-WEAR-POS.apk
+
+      - name: "7. Upload Downloadable Android APK Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "UNIVO-WEAR-Android-APK"
+          path: "apk_out/*.apk"
