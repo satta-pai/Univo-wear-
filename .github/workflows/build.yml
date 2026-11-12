@@ -15,8 +15,8 @@ jobs:
     steps:
     - name: 1. Checkout Repository
       uses: actions/checkout@v4
-    - name: 2. Locate Web App HTML (dress_shop_tracker.html / app.html / index.html / zip)
-      run: mkdir -p /tmp/univo_web && if [ -f dress_shop_tracker.html ]; then cp -f dress_shop_tracker.html /tmp/univo_web/index.html; elif [ -f app.html ]; then cp -f app.html /tmp/univo_web/index.html; elif [ -f index.html ]; then cp -f index.html /tmp/univo_web/index.html; elif [ -f univo_wear_flutter.zip ]; then unzip -o univo_wear_flutter.zip -d /tmp/univo_zip && if [ -f /tmp/univo_zip/assets/www/index.html ]; then cp -f /tmp/univo_zip/assets/www/index.html /tmp/univo_web/index.html; elif [ -f /tmp/univo_zip/web_pos/index.html ]; then cp -f /tmp/univo_zip/web_pos/index.html /tmp/univo_web/index.html; fi; fi && test -f /tmp/univo_web/index.html
+    - name: 2. Locate Web App HTML (Supports nested zip folders & direct HTML)
+      run: 'mkdir -p /tmp/univo_web /tmp/univo_zip && for z in *.zip; do if [ -f "$z" ]; then unzip -o "$z" -d /tmp/univo_zip; fi; done && FOUND_HTML=$(find . /tmp/univo_zip -type f \( -name "dress_shop_tracker.html" -o -name "app.html" -o -name "index.html" \) | head -n 1) && echo "Found HTML: $FOUND_HTML" && cp -f "$FOUND_HTML" /tmp/univo_web/index.html && test -s /tmp/univo_web/index.html'
     - name: 3. Setup Java 17
       uses: actions/setup-java@v4
       with:
