@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "63891231828",
+    "project_id": "univo-wear",
+    "storage_bucket": "univo-wear.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:63891231828:android:905d50b4073e33d51e89c1",
+        "android_client_info": {
+          "package_name": "com.univowear.pos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "63891231828-60uhivv121kped0vhuietr22d3baughi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.univowear.pos",
+            "certificate_hash": "d48982c228090b56d8ff5aa2a979cec4a6f9b691"
+          }
+        },
+        {
+          "client_id": "63891231828-48srs1m7t0659sa1a155s02dbqnoa9i2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-t31XGfnF4KNDDmjo-VHelSrcFo4bbs0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "63891231828-48srs1m7t0659sa1a155s02dbqnoa9i2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
