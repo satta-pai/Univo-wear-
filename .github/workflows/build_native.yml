@@ -1,4 +1,4 @@
-name: Build UNIVO WEAR Android APK + Windows Desktop App v32
+name: Build UNIVO WEAR Android APK + Windows Desktop App v37
 on:
   push:
     branches:
@@ -35,7 +35,7 @@ jobs:
       - name: 7. Auto-Publish Signed APK to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '\r') && TAG="v${VER}" && if gh release view "$TAG" >/dev/null 2>&1; then gh release upload "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --clobber; else gh release create "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --title "UNIVO WEAR $TAG" --notes "UNIVO WEAR v32 Pure Native POS (Android APK + Windows Desktop App)."; fi
+        run: VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '\r') && TAG="v${VER}" && if gh release view "$TAG" >/dev/null 2>&1; then gh release upload "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --clobber; else gh release create "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --title "UNIVO WEAR $TAG" --notes "UNIVO WEAR v37 Pure Native POS (Android APK + Windows Desktop App)."; fi
 
   build-windows-desktop-app:
     runs-on: windows-latest
@@ -76,3 +76,42 @@ jobs:
           $ver = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
           $tag = "v$ver"
           if (gh release view $tag 2>$null) { gh release upload $tag win_out/UNIVO-WEAR-Windows-Desktop.zip --clobber } else { gh release create $tag win_out/UNIVO-WEAR-Windows-Desktop.zip --title "UNIVO WEAR $tag" --notes "UNIVO WEAR $tag Windows Desktop App" }
+
+  deploy-computer-gmail-app:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+      - name: 2. Setup Flutter Stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: 3. Build Installable Computer App (Chrome/Edge Desktop App with Gmail Login)
+        run: |
+          mkdir -p /tmp/web_src
+          if [ -f univo_wear_native_flutter.zip ]; then unzip -o univo_wear_native_flutter.zip -d /tmp/web_src; else cp -r . /tmp/web_src; fi
+          flutter create --platforms=web --org com.univowear.pos --project-name univo_wear .
+          SRC_DIR=$(dirname $(find /tmp/web_src -name pubspec.yaml | head -n 1))
+          cp -rf "$SRC_DIR/lib" .
+          cp -rf "$SRC_DIR/assets" .
+          cp -f "$SRC_DIR/pubspec.yaml" .
+          rm -rf test/widget_test.dart
+          if [ -f assets/images/univo_logo.png ]; then
+            cp -f assets/images/univo_logo.png web/favicon.png
+            mkdir -p web/icons
+            cp -f assets/images/univo_logo.png web/icons/Icon-192.png
+            cp -f assets/images/univo_logo.png web/icons/Icon-512.png
+            cp -f assets/images/univo_logo.png web/icons/Icon-maskable-192.png
+            cp -f assets/images/univo_logo.png web/icons/Icon-maskable-512.png
+          fi
+          python3 -c 'import pathlib, json; p = pathlib.Path("web/manifest.json"); d = json.loads(p.read_text()); d["name"] = "UNIVO WEAR"; d["short_name"] = "UNIVO WEAR"; d["display"] = "standalone"; d["background_color"] = "#0A0B0E"; d["theme_color"] = "#0A0B0E"; p.write_text(json.dumps(d, indent=2))'
+          python3 -c 'import pathlib, re; p = pathlib.Path("web/index.html"); t = p.read_text(); t = re.sub(r"<title>.*?</title>", "<title>UNIVO WEAR POS</title>", t); p.write_text(t)'
+          flutter pub get
+          flutter build web --release --base-href "/Univo-wear-/" --no-tree-shake-icons
+      - name: 4. Publish Computer App to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
