@@ -1,4 +1,4 @@
-name: Build UNIVO WEAR Android APK + Windows Desktop App v43
+name: Build UNIVO WEAR Android APK + Windows Desktop App v45
 on:
   push:
     branches:
