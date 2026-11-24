@@ -35,7 +35,11 @@ jobs:
       - name: 7. Auto-Publish Signed APK to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '\r') && TAG="v${VER}" && if gh release view "$TAG" >/dev/null 2>&1; then gh release upload "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --clobber; else gh release create "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --title "UNIVO WEAR $TAG" --notes "UNIVO WEAR v43 (Background OS Updater + Cancel + Windows Auto-Updater)."; fi
+        run: |
+          VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '\r')
+          TAG="v${VER}"
+          gh release create "$TAG" --title "UNIVO WEAR $TAG" --notes "UNIVO WEAR $TAG (Live Arrow Tour + Windows Shortcuts + Reverse Back & Exit + Background OS Updater)" || true
+          gh release upload "$TAG" apk_out/UNIVO-WEAR-Native-POS.apk --clobber
 
   build-windows-desktop-app:
     runs-on: windows-latest
@@ -75,4 +79,6 @@ jobs:
         run: |
           $ver = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
           $tag = "v$ver"
-          if (gh release view $tag 2>$null) { gh release upload $tag win_out/UNIVO-WEAR-Windows-Desktop.zip --clobber } else { gh release create $tag win_out/UNIVO-WEAR-Windows-Desktop.zip --title "UNIVO WEAR $tag" --notes "UNIVO WEAR $tag Windows Desktop App" }
+          gh release create $tag --title "UNIVO WEAR $tag" --notes "UNIVO WEAR $tag (Android APK + Windows Desktop App)" 2>$null
+          $LASTEXITCODE = 0
+          gh release upload $tag win_out/UNIVO-WEAR-Windows-Desktop.zip --clobber
